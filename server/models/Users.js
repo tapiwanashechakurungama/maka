@@ -31,6 +31,10 @@ module.exports = (sequelize, DataTypes)=>{
         }
     })
 
+    User.associate = (models)=>{
+        User.hasMany(models.Bookings, {foreignKey:"userId"})
+    }
+
     return User
 
 }

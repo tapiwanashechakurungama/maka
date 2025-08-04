@@ -48,12 +48,13 @@ const login = async(req,res)=>{
             }
             // Only include the fields you want in the JWT payload
             const token = jwt.sign({
+                id: searchUser.id,
                 firstName: searchUser.firstName,
                 lastName: searchUser.lastName,
                 initialNames: searchUser.initialNames,
                 profilePicture: searchUser.profilePicture,
                 email: searchUser.email
-            }, "secret here", {expiresIn : "20m"})
+            }, "your-secret-key", {expiresIn : "20m"})
             if(token){
                 return res.status(200).json({firstName:searchUser.firstName, lastName:searchUser.lastName, initialNames: searchUser.initialNames, token:token})
             }
