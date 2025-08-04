@@ -9,6 +9,9 @@ const {
     deleteBooking
 } = require("../controllers/Bookings");
 
+// Import the auto-confirm function
+const { autoConfirmBookings } = require("../controllers/Bookings");
+
 // Create a new booking
 router.post("/create", createBooking);
 
@@ -26,5 +29,15 @@ router.put("/:id/cancel", cancelBooking);
 
 // Delete a booking
 router.delete("/:id", deleteBooking);
+
+// Demo route to auto-confirm pending bookings (for testing)
+router.post("/demo/auto-confirm", async (req, res) => {
+    try {
+        await autoConfirmBookings();
+        res.status(200).json({ message: "Auto-confirmation completed" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to auto-confirm bookings" });
+    }
+});
 
 module.exports = router;

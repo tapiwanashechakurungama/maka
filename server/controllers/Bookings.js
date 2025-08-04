@@ -2,6 +2,7 @@ const db = require("../models");
 const Bookings = db.Bookings;
 const User = db.User;
 const jwt = require("jsonwebtoken");
+const { createBookingNotification } = require("./Notifications");
 
 // Create a new booking
 const createBooking = async (req, res) => {
@@ -41,6 +42,9 @@ const createBooking = async (req, res) => {
             driverName,
             status: 'pending'
         });
+
+        // Create notification for booking creation
+        await createBookingNotification(booking, 'booking_created');
 
         res.status(201).json({
             message: "Booking created successfully",
@@ -144,7 +148,7 @@ const getBookingById = async (req, res) => {
     }
 };
 
-// Update booking status
+// Update booking status (admin function)
 const updateBookingStatus = async (req, res) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
@@ -169,13 +173,29 @@ const updateBookingStatus = async (req, res) => {
             return res.status(404).json({ error: "Booking not found" });
         }
 
+        // Additional validation for status transitions
+        if (booking.status === 'cancelled' && status !== 'cancelled') {
+            return res.status(400).json({ error: "Cannot update cancelled booking" });
+        }
+
+        if (booking.status === 'completed' && status !== 'completed') {
+            return res.status(400).json({ error: "Cannot update completed booking" });
+        }
+
         await booking.update({ status });
+
+        // Create notification for status change
+        if (status === 'confirmed') {
+            await createBookingNotification(booking, 'booking_confirmed');
+        }
 
         res.status(200).json({
             message: "Booking status updated successfully",
             booking: {
                 id: booking.id,
-                status: booking.status
+                status: booking.status,
+                busNumber: booking.busNumber,
+                driverName: booking.driverName
             }
         });
     } catch (error) {
@@ -213,6 +233,9 @@ const cancelBooking = async (req, res) => {
         }
 
         await booking.update({ status: 'cancelled' });
+
+        // Create notification for booking cancellation
+        await createBookingNotification(booking, 'booking_cancelled');
 
         res.status(200).json({
             message: "Booking cancelled successfully",
@@ -263,6 +286,28 @@ const deleteBooking = async (req, res) => {
     }
 };
 
+// Demo function to auto-confirm some bookings (for testing)
+const autoConfirmBookings = async () => {
+    try {
+        const pendingBookings = await Bookings.findAll({
+            where: { status: 'pending' },
+            limit: 2 // Only confirm 2 bookings at a time
+        });
+
+        for (const booking of pendingBookings) {
+            await booking.update({ 
+                status: 'confirmed',
+                busNumber: generateBusNumber(),
+                driverName: generateDriverName()
+            });
+        }
+
+        console.log(`Auto-confirmed ${pendingBookings.length} bookings`);
+    } catch (error) {
+        console.error('Error auto-confirming bookings:', error);
+    }
+};
+
 // Helper functions
 const calculatePrice = (from, to, passengers) => {
     // Simple price calculation - you can make this more sophisticated
@@ -287,5 +332,6 @@ module.exports = {
     getBookingById,
     updateBookingStatus,
     cancelBooking,
-    deleteBooking
+    deleteBooking,
+    autoConfirmBookings
 };
