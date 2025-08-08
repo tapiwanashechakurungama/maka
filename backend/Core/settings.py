@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-(v!rpg7q&ca@z!7%a4^x$dzdds5lul!azyse$t&tk4tyd%1@+v
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['*', '127.0.0.1', 'localhost', '192.168.1.92']
 
 
 # Application definition
@@ -127,10 +127,13 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
-    "http://127.0.0.1:8081",
+    "http://192.168.1.92:8000",
     "exp://192.168.1.92:8081",
-    "http://192.168.1.92:8000",  # Expo development
+    "http://192.168.1.92:8081",  # Expo development
+    "http://192.168.1.92:8082",
 ]
+
+
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 
 

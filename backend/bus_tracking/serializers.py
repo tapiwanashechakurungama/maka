@@ -167,8 +167,9 @@ class BookingSerializer(serializers.ModelSerializer):
         date_str = validated_data.get('date')
         time_str = validated_data.get('time')
         passengers = validated_data.get('number_of_passengers')
-        phone = validated_data.get('phoneNumber')
-        
+        phone = validated_data.get('phone_number')
+        bus_id = validated_data.get('bus')
+
         # Create or get default route (you might want to create proper routes)
         route, created = Route.objects.get_or_create(
             name=f"{from_location} to {to_location}",
@@ -181,27 +182,26 @@ class BookingSerializer(serializers.ModelSerializer):
                 'is_active': True
             }
         )
-        
-        # Get or create default bus
-        bus, created = Bus.objects.get_or_create(
-            bus_number="BUS001",
-            defaults={
-                'license_plate': 'ABC123',
-                'capacity': 20,
-                'driver_name': 'Default Driver',
-                'driver_phone': '1234567890',
-                'status': 'active'
-            }
-        )
-        
+
+        # Get bus from bus_id, fallback to default if not found
+        from .models import Bus
+        bus = None
+        if bus_id:
+            try:
+                bus = Bus.objects.get(id=bus_id)
+            except Bus.DoesNotExist:
+                bus = Bus.objects.filter(status='active').first()
+        else:
+            bus = Bus.objects.filter(status='active').first()
+
         # Parse date and time
         from datetime import datetime
         departure_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         departure_time = datetime.strptime(time_str, '%I:%M %p').time()
-        
+
         # Calculate total price
         total_price = route.price * passengers
-        
+
         # Create booking
         booking = Booking.objects.create(
             user=self.context['request'].user,
@@ -214,7 +214,7 @@ class BookingSerializer(serializers.ModelSerializer):
             total_price=total_price,
             status='pending'
         )
-        
+
         # Create confirmation notification
         Notification.objects.create(
             user=booking.user,
@@ -223,7 +223,7 @@ class BookingSerializer(serializers.ModelSerializer):
             notification_type='booking_confirmed',
             booking=booking
         )
-        
+
         return booking
 
 class NotificationSerializer(serializers.ModelSerializer):
