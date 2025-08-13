@@ -67,5 +67,46 @@ const login = async(req,res)=>{
     }
 }
 
+// Function to update user profile picture
+const updateProfilePicture = async (req, res) => {
+  try {
+    // Verify JWT token
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ error: "Authentication token required" });
+    }
+    
+    let decoded;
+    try {
+      decoded = jwt.verify(token, "your-secret-key");
+    } catch (err) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    
+    const userId = decoded.id;
+    
+    const { profilePicture } = req.body;
+    
+    if (!profilePicture) {
+      return res.status(400).json({ error: "Profile picture URL is required" });
+    }
+    
+    // Update user profile picture
+    const updatedUser = await User.update(
+      { profilePicture },
+      { where: { id: userId } }
+    );
+    
+    if (updatedUser[0] === 1) {
+      return res.status(200).json({ message: "Profile picture updated successfully" });
+    } else {
+      return res.status(404).json({ error: "User not found" });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
 
-module.exports = { register,login }
+module.exports = { register,login,updateProfilePicture }
