@@ -155,52 +155,35 @@ class BookingSerializer(serializers.ModelSerializer):
     bus_details = BusSerializer(source='bus', read_only=True)
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
     
+
+    route = serializers.PrimaryKeyRelatedField(queryset=Route.objects.all(), write_only=True)
+    bus = serializers.PrimaryKeyRelatedField(queryset=Bus.objects.all(), write_only=True)
+
     class Meta:
         model = Booking
         fields = '__all__'
         read_only_fields = ('booking_id', 'user', 'total_price', 'created_at', 'updated_at')
     
     def create(self, validated_data):
-        # Handle mobile app data format
-        from_location = validated_data.get('from')
-        to_location = validated_data.get('to')
-        date_str = validated_data.get('date')
-        time_str = validated_data.get('time')
+        from datetime import datetime
+        route = validated_data.pop('route')  # This is now a Route instance
+        bus = validated_data.pop('bus')      # This is now a Bus instance
+        departure_date = validated_data.get('departure_date')
+        departure_time = validated_data.get('departure_time')
         passengers = validated_data.get('number_of_passengers')
         phone = validated_data.get('phone_number')
-        bus_id = validated_data.get('bus')
 
-        # Create or get default route (you might want to create proper routes)
-        route, created = Route.objects.get_or_create(
-            name=f"{from_location} to {to_location}",
-            defaults={
-                'from_station': BusStation.objects.get_or_create(name=from_location)[0],
-                'to_station': BusStation.objects.get_or_create(name=to_location)[0],
-                'distance': 10.0,  # Default distance
-                'estimated_duration': 30,  # Default duration
-                'price': 5.0,  # Default price
-                'is_active': True
-            }
-        )
-
-        # Get bus from bus_id, fallback to default if not found
-        from .models import Bus
-        bus = None
-        if bus_id:
+        # If date/time are strings, parse them
+        if isinstance(departure_date, str):
+            departure_date = datetime.strptime(departure_date, '%Y-%m-%d').date()
+        if isinstance(departure_time, str):
             try:
-                bus = Bus.objects.get(id=bus_id)
-            except Bus.DoesNotExist:
-                bus = Bus.objects.filter(status='active').first()
-        else:
-            bus = Bus.objects.filter(status='active').first()
-
-        # Parse date and time
-        from datetime import datetime
-        departure_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        departure_time = datetime.strptime(time_str, '%I:%M %p').time()
+                departure_time = datetime.strptime(departure_time, '%H:%M').time()
+            except ValueError:
+                departure_time = datetime.strptime(departure_time, '%H:%M:%S').time()
 
         # Calculate total price
-        total_price = route.price * passengers
+        total_price = float(route.price) * passengers
 
         # Create booking
         booking = Booking.objects.create(
@@ -219,7 +202,7 @@ class BookingSerializer(serializers.ModelSerializer):
         Notification.objects.create(
             user=booking.user,
             title="Booking Confirmed",
-            message=f"Your booking from {from_location} to {to_location} has been confirmed.",
+            message=f"Your booking for route {route.name} has been confirmed.",
             notification_type='booking_confirmed',
             booking=booking
         )
