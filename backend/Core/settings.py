@@ -127,10 +127,14 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
-    "http://127.0.0.1:8081",
-    "exp://192.168.1.106:8081",
-    "http://192.168.1.106:8000",  # Expo development
+    "http://192.168.1.92:8000",
+    "exp://192.168.1.92:8081",
+    "http://192.168.1.92:8081",  # Expo development
+    "http://192.168.1.92:8082",
+    #"https://parole.pythonanywhere.com/",
 ]
+
+
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 
 
