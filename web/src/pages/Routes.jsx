@@ -69,7 +69,7 @@ const fetchRoutes = () => getRoutes().then(res => setRoutes(res.data.results));
   };
 
   return (
-    <Box p={4}>
+    <Box p={{ xs: 2, md: 3 }} sx={{ minHeight: "calc(100vh - 64px)", width: "100%", maxWidth: "100%", overflowX: "hidden" }}>
       <Typography variant="h5" gutterBottom>
         Routes Management
       </Typography>

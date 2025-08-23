@@ -1,8 +1,9 @@
-import axios from 'axios';
-const BASE_URL = 'http://parole.pythonanywhere.com/api';
+import client from './client';
 
-export const getBuses = () => axios.get(`${BASE_URL}/buses/`);
-export const addBus = (data) => axios.post(`${BASE_URL}/buses/`, data);
-export const updateBus = (id, data) => axios.put(`${BASE_URL}/buses/${id}/`, data);
-export const deleteBus = (id) => axios.delete(`${BASE_URL}/buses/${id}/`);
-export const publishBus = (id, publish) => axios.patch(`${BASE_URL}/buses/${id}/`, { published: publish });
+const BASE_URL = '/api';
+
+export const getBuses = () => client.get('/buses/');
+export const addBus = (data) => client.post('/buses/', data);
+export const updateBus = (id, data) => client.put(`/buses/${id}/`, data);
+export const deleteBus = (id) => client.delete(`/buses/${id}/`);
+export const publishBus = (id, publish) => client.patch(`/buses/${id}/`, { published: publish });

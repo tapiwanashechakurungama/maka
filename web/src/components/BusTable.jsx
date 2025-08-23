@@ -8,7 +8,7 @@ export default function BusTable({ buses, onEdit, onDelete, onPublish }) {
     <Table>
       <TableHead>
         <TableRow>
-          <TableCell>Plate Number</TableCell>
+          <TableCell>License Plate</TableCell>
           <TableCell>Capacity</TableCell>
           <TableCell>Published</TableCell>
           <TableCell>Actions</TableCell>
@@ -17,7 +17,15 @@ export default function BusTable({ buses, onEdit, onDelete, onPublish }) {
       <TableBody>
         {buses.map(bus => (
           <TableRow key={bus.id}>
-            <TableCell>{bus.plate_number}</TableCell>
+            <TableCell>{
+              bus.plate_number ??
+              bus.license_plate ??
+              bus.plateNumber ??
+              bus.licensePlate ??
+              bus.license ??
+              bus.plate ??
+              '-'
+            }</TableCell>
             <TableCell>{bus.capacity}</TableCell>
             <TableCell>
               <Switch checked={bus.published} onChange={() => onPublish(bus)} />
