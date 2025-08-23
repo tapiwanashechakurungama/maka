@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.db.models import Q
 from datetime import datetime, timedelta
 from .models import User, BusStation, Bus, BusLocation, Route, BusSchedule, Booking, Notification
+
 from .serializers import (
     UserSerializer, LoginSerializer, BusStationSerializer, BusSerializer,
     BusLocationSerializer, RouteSerializer, BusScheduleSerializer,
@@ -51,8 +52,13 @@ class LoginView(generics.GenericAPIView):
             'user': UserSerializer(user).data
         })
 
-class BusStationListView(generics.ListAPIView):
-    queryset = BusStation.objects.filter(is_active=True)
+class BusStationListView(generics.ListCreateAPIView):
+    queryset = BusStation.objects.all()
+    serializer_class = BusStationSerializer
+    permission_classes = [AllowAny]
+
+class BusStationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = BusStation.objects.all()
     serializer_class = BusStationSerializer
     permission_classes = [AllowAny]
 
@@ -61,17 +67,42 @@ class RouteListView(generics.ListAPIView):
     serializer_class = RouteSerializer
     permission_classes = [AllowAny]
 
+class BusScheduleListView(generics.ListCreateAPIView):
+    queryset = BusSchedule.objects.all()
+    serializer_class = BusScheduleSerializer
+    permission_classes = [AllowAny]
+
+class BusScheduleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = BusSchedule.objects.all()
+    serializer_class = BusScheduleSerializer
+    permission_classes = [AllowAny]
+
 class BusListView(generics.ListAPIView):
     serializer_class = BusSerializer
     permission_classes = [AllowAny]
     
     def get_queryset(self):
-        queryset = Bus.objects.filter(status='active')
+        # By default, return all buses so published state persists visibly
+        queryset = Bus.objects.all()
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param.lower() in ['active', 'inactive', 'maintenance']:
+            queryset = queryset.filter(status=status_param.lower())
         route_id = self.request.query_params.get('route_id')
         if route_id:
             # Filter buses available for specific route
             queryset = queryset.filter(schedules__route_id=route_id, schedules__is_active=True)
         return queryset
+
+class BusDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = BusSerializer
+    permission_classes = [AllowAny]
+    queryset = Bus.objects.all()
+
+# Allow POST to /api/buses/ for bus creation
+class BusCreateView(generics.CreateAPIView):
+    serializer_class = BusSerializer
+    permission_classes = [permissions.IsAdminUser]
+    queryset = Bus.objects.all()
 
 class BookingCreateView(generics.CreateAPIView):
     serializer_class = BookingSerializer
@@ -86,6 +117,17 @@ class UserBookingsView(generics.ListAPIView):
     
     def get_queryset(self):
         return Booking.objects.filter(user=self.request.user)
+
+# Admin-oriented booking management (list all, update/delete)
+class AdminBookingListView(generics.ListAPIView):
+    serializer_class = BookingSerializer
+    permission_classes = [AllowAny]
+    queryset = Booking.objects.all()
+
+class AdminBookingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = BookingSerializer
+    permission_classes = [AllowAny]
+    queryset = Booking.objects.all()
 
 class BookingDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = BookingSerializer
@@ -194,6 +236,21 @@ class BusTrackingView(generics.RetrieveAPIView):
         
         return Response(response_data)
 
+# --- Users ---
+class UserDetailView(generics.RetrieveUpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        obj = super().get_object()
+        user = self.request.user
+        # Allow admins to access any user; non-admins only their own record
+        if user.is_staff or user.is_superuser or obj.pk == user.pk:
+            return obj
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied("You do not have permission to access this user.")
+
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -257,3 +314,57 @@ def get_unread_count(request):
             {'error': 'Failed to get unread count'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+# --- Analytics Endpoint ---
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def analytics_summary(request):
+    """Return summary analytics used by the web dashboard.
+
+    Response schema:
+    {
+      "bookings_today": int,
+      "bookings_last_7_days": [{"day": "Mon", "count": 3}, ...],
+      "route_demand": [{"name": "Route Name", "value": 10}, ...]
+    }
+    """
+    try:
+        today = timezone.now().date()
+
+        # Count bookings today (exclude cancelled)
+        bookings_today = Booking.objects.filter(
+            departure_date=today
+        ).exclude(status='cancelled').count()
+
+        # Last 7 days booking counts by day label
+        days = []
+        for i in range(6, -1, -1):  # 6..0 => oldest to newest
+            d = today - timedelta(days=i)
+            count = Booking.objects.filter(departure_date=d).exclude(status='cancelled').count()
+            days.append({
+                'day': d.strftime('%a'),  # Mon, Tue, ...
+                'count': count
+            })
+
+        # Route demand: total bookings per route (exclude cancelled)
+        route_counts = (
+            Booking.objects.exclude(status='cancelled')
+            .values('route__name')
+        )
+        # Materialize counts per route name
+        demand_map = {}
+        for rc in route_counts:
+            name = rc['route__name'] or 'Unknown Route'
+            demand_map[name] = demand_map.get(name, 0) + 1
+        route_demand = [
+            {'name': name, 'value': value} for name, value in demand_map.items()
+        ]
+
+        data = {
+            'bookings_today': bookings_today,
+            'bookings_last_7_days': days,
+            'route_demand': route_demand,
+        }
+        return Response(data)
+    except Exception as e:
+        return Response({'error': 'Failed to compute analytics'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

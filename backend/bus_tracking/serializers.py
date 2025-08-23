@@ -14,6 +14,9 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 
                  'student_id', 'phone_number', 'profile_picture', 'password', 'confirm_password',
                  'firstName', 'lastName')
+        extra_kwargs = {
+            'password': {'required': False},
+        }
 
     def validate(self, attrs):
         # Handle mobile app format (firstName, lastName)
@@ -47,6 +50,18 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+    def update(self, instance, validated_data):
+        # Handle optional password change
+        password = validated_data.pop('password', None)
+        validated_data.pop('confirm_password', None)
+        # Support mobile alias fields already mapped in validate()
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.CharField()  # Mobile app sends email
     password = serializers.CharField()
@@ -78,10 +93,13 @@ class BusStationSerializer(serializers.ModelSerializer):
 
 class BusSerializer(serializers.ModelSerializer):
     current_location = serializers.SerializerMethodField()
-    
+    # Writable virtual field for toggling status via 'published'
+    published = serializers.BooleanField(required=False)
+
     class Meta:
         model = Bus
         fields = '__all__'
+        # 'published' is an extra field not on the model; DRF will include it since declared above
     
     def get_current_location(self, obj):
         try:
@@ -94,6 +112,24 @@ class BusSerializer(serializers.ModelSerializer):
             }
         except BusLocation.DoesNotExist:
             return None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Represent 'published' as active status
+        data['published'] = (instance.status == 'active')
+        return data
+
+    def update(self, instance, validated_data):
+        # Handle 'published' by mapping to status
+        if 'published' in validated_data:
+            published = validated_data.pop('published')
+            instance.status = 'active' if published else 'inactive'
+
+        # Proceed with normal updates for other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class BusTrackerSerializer(serializers.ModelSerializer):
     bus_number = serializers.CharField(source='bus.bus_number', read_only=True)
